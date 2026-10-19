@@ -31,7 +31,7 @@ if it is set, it is still sent as a header, harmlessly.
 ## Where this stands
 
 **Status as of 2026-10-20: working end to end.** The MCC exists: Skypoint Cloud Inc,
-`775-317-9425`, set as `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in `.env`.
+`ID`, set as `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in `.env`.
 
 - **Done:** OAuth client, refresh token, manager-link acceptance (the client
   account is `GOOGLE_ADS_CUSTOMER_ID` in `.env`), and Explorer API access
