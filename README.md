@@ -1,11 +1,8 @@
 # Google Ads Integration PoC — Skypoint
 
-Google Ads only. The Meta Ads connector is a separate package (`Metaads- Poc/`)
-and ships first; this one repeats the same three phases once Meta is proven.
-
 Four Python modules plus a one-time token helper, `requests` only. No `google-ads`
-SDK — the REST interface is called directly, so the extractor cannot break on an SDK version bump, and
-the real connector runs on the Airbyte CDK anyway.
+SDK — the REST interface is called directly, so the extractor cannot break on an
+SDK version bump, and the real connector runs on the Airbyte CDK anyway.
 
 | File | What it does |
 |------|--------------|
@@ -329,19 +326,17 @@ The resulting load rule:
 > Watermark = last complete date. Pull `(watermark − conversion window) …
 > yesterday`. **UPSERT on `(date, campaign_id)`** — never INSERT.
 
-**Where this differs from Meta**, and why the two connectors are not copies:
-Meta's window is a fixed 28 days, the same for every account. Google's is a
+**The lookback is a value to read, not assume.** Google's conversion window is a
 **per-account setting** — 30 days by default, configurable up to 90, and it can
-differ between conversion actions in the same account. So the lookback is a
-value to *read*, not assume. Read the real windows from `conversion_action`
+differ between conversion actions in the same account. Read the real windows from `conversion_action`
 (`CONVERSION_WINDOW_QUERY` in `google_client.py`) and keep the configured
 lookback at or above the widest one. For Kyrene the widest is 90 days, which is
 what `GOOGLE_ADS_RESTATEMENT_DAYS` is set to.
 
 ## Credentials
 
-Three secrets, not one — Google Ads is an OAuth flow rather than Meta's static
-token. The developer token below is legacy and not one of the three:
+Three secrets — Google Ads is an OAuth flow. The developer token below is
+legacy and not one of the three:
 
 | Value | Secret? | Notes |
 |---|---|---|

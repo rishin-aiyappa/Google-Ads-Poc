@@ -7,8 +7,6 @@ has been pulled.
 **Owner:** Rishin Aiyappa (Skypoint)
 **Access level:** read-only reporting via a shared OAuth credential at the MCC
 
-Google Ads only. Meta Ads is a separate package and ships first.
-
 ---
 
 ## 1. Overview
@@ -72,15 +70,15 @@ appear in no committed file.
 3. **Every run:** exchange `refresh_token` for a short-lived `access_token`,
    then make GAQL calls carrying `login-customer-id`.
 
-### The auth model, and why it is not Meta's
+### The auth model
 
-| | Meta Ads | Google Ads |
-|---|---|---|
-| Credential | Static System User token | OAuth refresh token |
-| Expiry | Never | Access token ~1h; refresh token until revoked |
-| Round trips per run | 0 extra | 1 token exchange, plus refreshes |
-| Kinds of 401 | One (fatal) | **Two, handled oppositely** |
-| Secrets | 1 | 3 |
+| | Google Ads |
+|---|---|
+| Credential | OAuth refresh token |
+| Expiry | Access token ~1h; refresh token until revoked (7 days while the OAuth app is in Testing status) |
+| Round trips per run | 1 token exchange, plus refreshes |
+| Kinds of 401 | **Two, handled oppositely** |
+| Secrets | 3 (client id, client secret, refresh token) |
 
 **The two kinds of 401** are the core of `google_client.py`:
 
@@ -117,7 +115,7 @@ Validated live against Kyrene School District (`829-530-3333`) on 2026-10-19/20.
 | Hyphen / `login-customer-id` handling | **Pass** — verified live: the account is queried through the MCC |
 | Live extract | **Pass** — 187 campaign-by-day rows, 8 campaigns, 2026-03-13 to 2026-10-19 (the account's first campaign started 2026-03-13) |
 | Output matches the Google Ads UI | **Pass** — impressions, conversions, spend, cost per conversion and TrueView views match for Sep 12 – Oct 9, 2026. The UI's top card also hides the removed campaign, which accounts for its small difference |
-| Schema | **Pass** — 48 columns: the original 14 shared columns plus 34 Google-specific KPI and campaign-info columns. The Meta package does not have the extra 34, so a union needs reshaping or column drops |
+| Schema | **Pass** — 48 columns: the original 14 shared columns plus 34 Google-specific KPI and campaign-info columns. |
 | Live resource probe | **Pass** — 25 resources have data, 3 are empty, 0 denied, 1 unavailable (`campaign_search_term_insight` requires a filter) |
 | Conversion-window lookback | **Pass** — the widest click-through window on the account is 90 days; `GOOGLE_ADS_RESTATEMENT_DAYS=90` covers it |
 | Restatement demonstration | **Partial** — two incremental runs minutes apart reported 0 restated rows. Full pulls a day apart differed slightly (e.g. Display 7.00 vs 8.00 conversions), which looks like restatement but was not compared row by row. Re-run `google_incremental.py` a day or more later for a clean measurement |
@@ -155,30 +153,25 @@ Search Console link.
 
 ### The output schema
 
-One row per campaign per day, 48 columns. The first design was a 14-column
-schema deliberately identical to the Meta package's (except for the account
-identifier), so the two sources union in Silver without reshaping:
+One row per campaign per day, 48 columns. The core 14 are:
 
 ```
 date, campaign_id, campaign_name, impressions, clicks, spend,
 ctr, cpc, cpm, reach, conversions, source, customer_id, extracted_at
 ```
 
-Those 14 are still in the file. 34 Google-specific columns were added after the
-first live pull: campaign info (`campaign_status`, `channel_type`,
-`bidding_strategy`, `daily_budget`), engagement, detailed conversions, video,
-search impression share, click quality, and `customer_name`. Meta has no
-equivalent of the extra columns, so a union means selecting the shared 14 or
-filling the rest with nulls. Every column is defined in the README under
-"Column definitions".
+34 more were added after the first live pull: campaign info (`campaign_status`,
+`channel_type`, `bidding_strategy`, `daily_budget`), engagement, detailed
+conversions, video, search impression share, click quality, and `customer_name`.
+Every column is defined in the README under "Column definitions".
 
 Four mappings are not straight passthroughs:
 
 - **`spend` and `cpc` are micros.** `cost_micros` and `average_cpc` come back
   multiplied by 1,000,000. Forgetting to divide produces numbers that look
   plausible, which is what makes it dangerous.
-- **`ctr` units differ between vendors.** Google reports a fraction (`0.0512`);
-  Meta reports a percent (`5.12`). Normalized to percent here so the two agree.
+- **`ctr` is a fraction in the API** (`0.0512`). Normalized to a percent
+  (`5.12`) here, as are all the other rate columns.
 - **`reach` does not exist.** Google has no reach equivalent at this grain.
   Explicitly `None`, never `0` — "not measured" and "measured as zero" are
   different facts.
@@ -225,14 +218,13 @@ Run it again a day or more after the last run to measure it properly.
 
 ### The lookback is a value to read, not assume
 
-This is the substantive difference from Meta and the reason the two connectors
-are not copies of each other:
+Google's conversion window is a **per-account setting**, not a constant:
 
-| | Meta Ads | Google Ads |
-|---|---|---|
-| Window | Fixed **28 days** | **Per-account setting** |
-| Default | — | 30 days |
-| Range | Same for every account | Up to 90, and can differ per conversion action |
+| | Google Ads |
+|---|---|
+| Window | **Per-account setting** |
+| Default | 30 days |
+| Range | Up to 90, and can differ per conversion action |
 
 Hardcoding a number would silently lose conversions on any account configured
 wider. The real `click_through_lookback_window_days` on each action comes from
@@ -259,17 +251,15 @@ excluded — a partial day is guaranteed to be restated and adds only noise.
 **Strong fits**
 1. **Spend and delivery** — campaign/ad-group/ad daily performance, stable
    within a day. Safe for finance reporting.
-2. **Search intent** — `search_term_view` is the query-level data that has no
-   Meta equivalent, and is usually the highest-value Google-specific asset.
-3. **Cross-platform roll-up** — the original 14 shared columns union directly
-   with the Meta extract in Silver.
-4. **Conversion analysis** — provided the restatement rule above is honored.
+2. **Search intent** — `search_term_view` is the query-level data, and is
+   usually the highest-value Google-specific asset.
+3. **Conversion analysis** — provided the restatement rule above is honored.
 
 **Limitations / notes**
 - Conversions are fractional and restate for up to 90 days; any dashboard
   comparing "yesterday" to "last month" is comparing a half-formed number to a
   settled one unless the grain states its age.
-- `reach` is unavailable, so a Meta/Google union cannot report combined reach.
+- `reach` is unavailable at this grain.
 - The Cloud project's API access level (Test, Explorer, Basic, Standard) caps
   daily operations; Test access cannot reach real client accounts at all.
 - Ad-set/ad-level detail and audience breakdowns are the same mechanism with
@@ -342,8 +332,7 @@ output lands solely in that client's own ADLS Gen2.
       https://developers.google.com/google-ads/api/docs/sunset-dates yearly.
 - [x] **A client accepts the manager link request** — done (Kyrene).
 - [ ] **Settle the Key Vault decision** — shared credential across tenants;
-      Option A (copy into each client's tenant vault) recommended. Applies to
-      Meta and Google Ads identically and should be settled once.
+      Option A (copy into each client's tenant vault) recommended.
 - [x] **Confirm the conversion-window lookback** for Kyrene — widest is 90
       days, and `GOOGLE_ADS_RESTATEMENT_DAYS=90`. Repeat per new client by
       querying `conversion_action` (`CONVERSION_WINDOW_QUERY`).
