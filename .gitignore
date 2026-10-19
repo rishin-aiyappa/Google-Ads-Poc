@@ -1,5 +1,10 @@
 # The real credentials. Only .env.example is ever committed.
+# Every env file is ignored (.env, .env.local, .env.prod, prod.env, ...) ...
 .env
+.env.*
+*.env
+# ... except the blank template.
+!.env.example
 
 # Runtime artefacts
 state/
