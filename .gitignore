@@ -1,0 +1,10 @@
+# The real credentials. Only .env.example is ever committed.
+.env
+
+# Runtime artefacts
+state/
+output/
+__pycache__/
+*.pyc
+.venv/
+venv/

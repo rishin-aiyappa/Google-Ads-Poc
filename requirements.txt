@@ -1,0 +1,19 @@
+# Deliberately minimal, matching the Meta Ads package.
+#
+# No google-ads SDK: the REST interface is called directly, so the extractor
+# cannot break on an SDK version bump, and the real connector runs on the
+# Airbyte CDK anyway -- SDK scaffolding here would be thrown away.
+#
+# No google-auth-oauthlib either: get_refresh_token.py implements the consent
+# flow on the standard library.
+#
+# No pandas: nothing here needs a DataFrame.
+#
+# For the real connector, requirements are exact-pinned (== only), captured
+# with pip freeze from inside the built python:3.11.15-slim container. These
+# floors are for the PoC only.
+requests>=2.28.0
+
+# Optional: lets the scripts read .env automatically. They run fine on plain
+# environment variables without it.
+python-dotenv>=1.0.0
