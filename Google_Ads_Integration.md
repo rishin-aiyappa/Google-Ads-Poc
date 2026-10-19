@@ -56,9 +56,10 @@ No SDK is required — plain HTTPS POSTs with a JSON body work (`requests`).
 | Developer token | sunset 2026-09-09; blank and ignored | **Not needed** |
 | Client account link | client accepts the manager invite | **Done** (Kyrene) |
 
-The MCC id and the client's customer id are non-secret identifiers and are
-pre-filled in `.env.example`. The three OAuth values (client id, client secret,
-refresh token) are secrets and appear in no committed file.
+The MCC id and the client's customer id are non-secret identifiers, and are
+left blank in `.env.example` (they are set in each person's own `.env`). The
+three OAuth values (client id, client secret, refresh token) are secrets and
+appear in no committed file.
 
 ### Authentication flow
 

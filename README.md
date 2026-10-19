@@ -115,12 +115,13 @@ account, and after step 6 there is data to pull. All six are done.
 1. Python 3 (tested on 3.14). From this folder:
    `python -m venv .venv`, activate it, then `pip install -r requirements.txt`.
 2. `copy .env.example .env` (macOS/Linux: `cp`), then fill in the three secrets:
-   `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`.
-   Get them from whoever owns the Cloud project, over a secure channel. They are
-   shared by the whole platform. Never commit `.env` (it is gitignored), and never
-   paste them into a chat or ticket. Everything else in `.env.example` is already
-   filled in (customer `8295303333`, MCC `7753179425`, API `v25`, lookback `90`).
-   Leave `GOOGLE_ADS_DEVELOPER_TOKEN` blank.
+   `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`,
+   plus the two account ids, `GOOGLE_ADS_CUSTOMER_ID` (the client account) and
+   `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (the MCC). Get all five from whoever owns the
+   Cloud project, over a secure channel. The three secrets are shared by the whole
+   platform. Never commit `.env` (it is gitignored), and never paste them into a
+   chat or ticket. The rest of `.env.example` is already filled in (API `v25`,
+   lookback `90`). Leave `GOOGLE_ADS_DEVELOPER_TOKEN` blank.
 3. `python google_extract.py --since 2025-01-01 --until <today>`. The CSV lands in
    `output/` (created automatically).
 
