@@ -1,8 +1,9 @@
 # Google Ads Integration — Skypoint
 
-**Status:** PoC complete and runnable end to end. MCC created; OAuth client,
-refresh token done, Explorer access applied for. Kyrene School District linked.
-**Written:** 2026-10-05
+**Status:** PoC complete and validated live. OAuth client, refresh token, API
+access and the Kyrene School District link are all done; real campaign data
+has been pulled.
+**Written:** 2026-10-05 (updated 2026-10-20)
 **Owner:** Rishin Aiyappa (Skypoint)
 **Access level:** read-only reporting via a shared OAuth credential at the MCC
 
@@ -24,11 +25,11 @@ Skypoint                                  Google
 │ ONE OAuth credential │  refresh_token  │ oauth2.googleapis.com      │
 │ (client_id, secret,  ├────────────────►│   -> access_token (~1h)    │
 │  refresh_token)      │                 └────────────────────────────┘
-│ + developer_token    │                 ┌────────────────────────────┐
+│ (no developer token) │                 ┌────────────────────────────┐
 └──────────┬───────────┘  GAQL over REST │ googleads.googleapis.com   │
            │             ───────────────►│ MCC 775-317-9425           │
            │   login-customer-id: MCC    │  └─ client accounts        │
-           │   customer_id: the client   │     (none linked yet)      │
+           │   customer_id: the client   │     (Kyrene linked)        │
            ▼
 Raw batches → the client's own ADLS Gen2 (production phase)
 ```
@@ -51,7 +52,7 @@ No SDK is required — plain HTTPS POSTs with a JSON body work (`requests`).
 | Manager account (MCC) | Skypoint Cloud Inc — `775-317-9425` | **Done** |
 | OAuth client (Cloud Console, Desktop app) | `client_id` / `client_secret` | **Done** |
 | Refresh token | minted once against the MCC | **Done** |
-| API access level | Cloud Console → Google Ads API → Access levels (Explorer) | Applied 2026-10-19 |
+| API access level | Cloud Console → Google Ads API → Access levels (Explorer) | **Done** — applied 2026-10-19, live pulls now succeed |
 | Developer token | sunset 2026-09-09; blank and ignored | **Not needed** |
 | Client account link | client accepts the manager invite | **Done** (Kyrene) |
 
@@ -61,13 +62,13 @@ other three are secrets and appear in no file in this package.
 ### Authentication flow
 
 1. **One-time, platform-level:** create the OAuth client → run
-   `get_refresh_token.py` → obtain a developer token. These are the same for
-   every client.
+   `get_refresh_token.py` → apply for API access (Explorer) in Cloud Console.
+   Developer tokens were sunset on 2026-09-09 and are no longer needed. These
+   are the same for every client.
 2. **One-time, per client:** the client accepts the manager link request. No
-   credential is exchanged; access is granted account-side. **← the remaining
-   step after (1).**
+   credential is exchanged; access is granted account-side. Done for Kyrene.
 3. **Every run:** exchange `refresh_token` for a short-lived `access_token`,
-   then make GAQL calls carrying `developer-token` and `login-customer-id`.
+   then make GAQL calls carrying `login-customer-id`.
 
 ### The auth model, and why it is not Meta's
 
@@ -104,17 +105,27 @@ waiting for a 401 — the same discipline `source-paychex` uses for its
 
 ## 3. PoC validation status
 
+Validated live against Kyrene School District (`829-530-3333`) on 2026-10-19/20.
+
 | Check | Result |
 |-------|--------|
-| No-credentials behaviour | **Pass** — every data path refuses and names what is missing; nothing is fabricated or written |
-| Schema normalization | **Pass** — 14 columns, matching the Meta package |
-| Restatement demonstration | **Pending** — needs two real pulls on a live account; there is no synthetic data to fake it with |
-| Hyphen / `login-customer-id` handling | **Pass** — verified without network calls |
-| OAuth exchange | **Pending** — no OAuth client yet |
-| Live resource probe | **Pending** — needs developer token + a client account |
+| No-credentials behaviour | **Pass** — every data path refuses and names what is missing; nothing is fabricated or written. Re-checked in a fresh clone |
+| OAuth exchange | **Pass** — refresh token minted with `get_refresh_token.py` (listener waits through the unverified-app warning); access tokens mint on every run |
+| API version and access level | **Pass** — v25 works (v21 was sunset and 404'd); Explorer access approved, real-account queries succeed |
+| Hyphen / `login-customer-id` handling | **Pass** — verified live: the account is queried through the MCC |
+| Live extract | **Pass** — 187 campaign-by-day rows, 8 campaigns, 2026-03-13 to 2026-10-19 (the account's first campaign started 2026-03-13) |
+| Output matches the Google Ads UI | **Pass** — impressions, conversions, spend, cost per conversion and TrueView views match for Sep 12 – Oct 9, 2026. The UI's top card also hides the removed campaign, which accounts for its small difference |
+| Schema | **Pass** — 48 columns: the original 14 shared columns plus 34 Google-specific KPI and campaign-info columns. The Meta package does not have the extra 34, so a union needs reshaping or column drops |
+| Live resource probe | **Pass** — 25 resources have data, 3 are empty, 0 denied, 1 unavailable (`campaign_search_term_insight` requires a filter) |
+| Conversion-window lookback | **Pass** — the widest click-through window on the account is 90 days; `GOOGLE_ADS_RESTATEMENT_DAYS=90` covers it |
+| Restatement demonstration | **Partial** — two incremental runs minutes apart reported 0 restated rows. Full pulls a day apart differed slightly (e.g. Display 7.00 vs 8.00 conversions), which looks like restatement but was not compared row by row. Re-run `google_incremental.py` a day or more later for a clean measurement |
 
-Everything marked *Pending* becomes a single command once the credentials
-exist: `python google_extract.py`, then `python google_resources.py`.
+Not covered yet: conversions by conversion action, and any level below campaign
+(ad group, keyword, search term, device, geography). See the README's "What is
+NOT pulled".
+
+To reproduce: `python google_extract.py --since 2025-01-01 --until <today>`,
+then `python google_resources.py`.
 
 ---
 
@@ -246,8 +257,8 @@ excluded — a partial day is guaranteed to be restated and adds only noise.
   comparing "yesterday" to "last month" is comparing a half-formed number to a
   settled one unless the grain states its age.
 - `reach` is unavailable, so a Meta/Google union cannot report combined reach.
-- Developer-token tier caps daily operations; Test tier cannot reach real
-  client accounts at all.
+- The Cloud project's API access level (Test, Explorer, Basic, Standard) caps
+  daily operations; Test access cannot reach real client accounts at all.
 - Ad-set/ad-level detail and audience breakdowns are the same mechanism with
   more rows, not a different one.
 
@@ -291,12 +302,11 @@ output lands solely in that client's own ADLS Gen2.
   credential means one retry loop takes down every client at once.
 - **Access-token expiry is not an auth failure** and is handled silently —
   the distinction is implemented, not just documented.
-- **Classification on the GAQL error family**, not HTTP status. The Test-tier
-  developer-token rejection gets its own error class because it arrives *as*
-  an authorization error but needs a completely different fix (apply for
-  Basic, not re-mint anything).
-- **ZZ-invalid negative test** corrupts `customer_id` only. The refresh token
-  and developer token are never touched, and the test says so out loud.
+- **Classification on the GAQL error family**, not HTTP status. The
+  "project not approved for production" rejection
+  (`CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION`) gets its own error class because
+  it arrives *as* an authorization error but needs a completely different fix
+  (apply for Explorer/Basic access, not re-mint anything).
 - **One shared rate budget** at 5 req/s, independent of concurrency.
 - **Field names in logs, never values.** Secrets masked even where a human
   needs to confirm which one loaded.

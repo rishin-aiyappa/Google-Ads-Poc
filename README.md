@@ -33,17 +33,19 @@ if it is set, it is still sent as a header, harmlessly.
 
 ## Where this stands
 
-**Status as of 2026-10-19.** The MCC exists: Skypoint Cloud Inc,
+**Status as of 2026-10-20: working end to end.** The MCC exists: Skypoint Cloud Inc,
 `775-317-9425`, set as `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in `.env`.
 
-- **Done:** OAuth client, refresh token, and manager-link acceptance (the
-  client account is `GOOGLE_ADS_CUSTOMER_ID` in `.env`).
+- **Done:** OAuth client, refresh token, manager-link acceptance (the client
+  account is `GOOGLE_ADS_CUSTOMER_ID` in `.env`), and Explorer API access
+  (applied 2026-10-19; live pulls against the real account now succeed).
 - **Done in code:** the API version bump to v25 and the page-size fix (steps 3
   and 4 below).
-- **Pending:** the **Explorer access application** is submitted and awaiting
-  review (step 5). Until it is approved, queries against the real account fail
-  with `CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION`. Nothing
-  else is blocking data.
+- **Validated:** a full pull returned real Kyrene School District data and
+  matched the Google Ads UI. See `Google_Ads_Integration.md`, section 3.
+- **Still open:** conversions by conversion action and anything below campaign
+  level (see "What is NOT pulled"), and a clean restatement measurement a day
+  or more after the first pulls.
 
 **How we got here**, in order — each step unblocked the next:
 
@@ -101,12 +103,13 @@ if it is set, it is still sent as a header, harmlessly.
    Cloud Console → APIs & Services → Enabled APIs & services → Google Ads API →
    **Access levels** card → Manage → Upgrade access level → Apply for access
    (the next level is **Explorer**). The application is auto-reviewed, typically
-   within minutes. Submitted 2026-10-19, pending review. Apply for Basic later
+   within minutes. Applied 2026-10-19 and approved: real-account queries now
+   work. Apply for Basic later
    only if Explorer's limits become a problem.
 6. **A client accepts the manager link request** — client-side, not code. Done.
 
-After step 2 the OAuth credential works. After step 5 is approved, queries reach
-the real account, and after step 6 there is data to pull.
+After step 2 the OAuth credential works, after step 5 queries reach the real
+account, and after step 6 there is data to pull. All six are done.
 
 ## Setup for a new teammate
 
