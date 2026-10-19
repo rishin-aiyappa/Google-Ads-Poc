@@ -56,8 +56,9 @@ No SDK is required — plain HTTPS POSTs with a JSON body work (`requests`).
 | Developer token | sunset 2026-09-09; blank and ignored | **Not needed** |
 | Client account link | client accepts the manager invite | **Done** (Kyrene) |
 
-The MCC id is a non-secret identifier and is pre-filled in `.env.example`. The
-other three are secrets and appear in no file in this package.
+The MCC id and the client's customer id are non-secret identifiers and are
+pre-filled in `.env.example`. The three OAuth values (client id, client secret,
+refresh token) are secrets and appear in no committed file.
 
 ### Authentication flow
 
@@ -153,14 +154,22 @@ Search Console link.
 
 ### The output schema
 
-One row per campaign per day. Deliberately identical to the Meta package's
-schema except for the account identifier, so the two sources union in Silver
-without reshaping.
+One row per campaign per day, 48 columns. The first design was a 14-column
+schema deliberately identical to the Meta package's (except for the account
+identifier), so the two sources union in Silver without reshaping:
 
 ```
 date, campaign_id, campaign_name, impressions, clicks, spend,
 ctr, cpc, cpm, reach, conversions, source, customer_id, extracted_at
 ```
+
+Those 14 are still in the file. 34 Google-specific columns were added after the
+first live pull: campaign info (`campaign_status`, `channel_type`,
+`bidding_strategy`, `daily_budget`), engagement, detailed conversions, video,
+search impression share, click quality, and `customer_name`. Meta has no
+equivalent of the extra columns, so a union means selecting the shared 14 or
+filling the rest with nulls. Every column is defined in the README under
+"Column definitions".
 
 Four mappings are not straight passthroughs:
 
@@ -206,9 +215,12 @@ load       = UPSERT on (date, campaign_id), never INSERT
 
 `google_incremental.py` is built to detect this: it fingerprints every row it
 pulls, stores the watermark, and on the next run reports which
-`(date, campaign_id)` pairs came back with different numbers. It has **not yet
-been run against live data**, so this is documented Google behaviour rather than
-something the PoC has observed; the first two live runs a day apart will measure it.
+`(date, campaign_id)` pairs came back with different numbers. It has now run
+live twice, minutes apart, and reported 0 restated rows, which is expected that
+soon after a pull. Two full pulls a day apart did differ slightly (Display 7.00
+vs 8.00 conversions), consistent with restatement but not compared row by row,
+so this is still documented Google behaviour rather than a clean measurement.
+Run it again a day or more after the last run to measure it properly.
 
 ### The lookback is a value to read, not assume
 
@@ -248,7 +260,7 @@ excluded — a partial day is guaranteed to be restated and adds only noise.
    within a day. Safe for finance reporting.
 2. **Search intent** — `search_term_view` is the query-level data that has no
    Meta equivalent, and is usually the highest-value Google-specific asset.
-3. **Cross-platform roll-up** — the shared 14-column schema unions directly
+3. **Cross-platform roll-up** — the original 14 shared columns union directly
    with the Meta extract in Silver.
 4. **Conversion analysis** — provided the restatement rule above is honored.
 
@@ -270,7 +282,7 @@ The same three repos as every other Skypoint V2 connector:
 
 | Step | Repo | What gets built for `google-ads` |
 |---|---|---|
-| 1 | `skypoint-studio` | Seed `connector-v2-google-ads.json`. Field definition carries **only** `customerId`, `isCredential: false` — none of the four secrets appear in a form field |
+| 1 | `skypoint-studio` | Seed `connector-v2-google-ads.json`. Field definition carries **only** `customerId`, `isCredential: false` — none of the three secrets appear in a form field |
 | 2 | `skypoint-connector-hub` | `validator.ts`: exchange the refresh token, then one GAQL read — `SELECT customer.descriptive_name FROM customer LIMIT 1`, scoped under `login_customer_id`. **Two round trips, one attempt each, no retry loop** |
 | 3 | `skypoint-skyconnect` | `source-google-ads/` — the `sync.py` / `run.py` two-process split, writing to the client's own ADLS Gen2 |
 
@@ -323,15 +335,22 @@ output lands solely in that client's own ADLS Gen2.
 - [x] **Create the OAuth client** — Cloud Console → Credentials → OAuth 2.0
       Client ID, type Desktop app.
 - [x] **Mint the refresh token** — `python get_refresh_token.py`.
-- [x] **API access** — developer tokens are gone; Explorer access is applied
-      for in Cloud Console (Basic later if needed).
+- [x] **API access** — developer tokens are gone; Explorer access was applied
+      for on 2026-10-19 and is working (Basic later if needed).
 - [x] **Confirm the API version** — `v25` (v21 was sunset); re-check
       https://developers.google.com/google-ads/api/docs/sunset-dates yearly.
 - [x] **A client accepts the manager link request** — done (Kyrene).
 - [ ] **Settle the Key Vault decision** — shared credential across tenants;
       Option A (copy into each client's tenant vault) recommended. Applies to
       Meta and Google Ads identically and should be settled once.
-- [ ] **Confirm the conversion-window lookback** per client once an account is
-      linked — query `conversion_action` (`CONVERSION_WINDOW_QUERY`); it just needs an account to read.
+- [x] **Confirm the conversion-window lookback** for Kyrene — widest is 90
+      days, and `GOOGLE_ADS_RESTATEMENT_DAYS=90`. Repeat per new client by
+      querying `conversion_action` (`CONVERSION_WINDOW_QUERY`).
 - [ ] **Decide grain and backfill horizon** — ad-group/ad level and search
-      terms multiply row counts substantially.
+      terms multiply row counts substantially. The PoC pulls campaign level only.
+- [ ] **Add conversions by conversion action** — the account has 16 conversion
+      actions, but the CSV carries only the totals.
+- [ ] **Re-run `google_incremental.py` a day or more later** to measure real
+      restatement.
+- [ ] **Decide where this repo lives.** It names the client and account ids and
+      the GitHub repo is public.

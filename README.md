@@ -3,8 +3,8 @@
 Google Ads only. The Meta Ads connector is a separate package (`Metaads- Poc/`)
 and ships first; this one repeats the same three phases once Meta is proven.
 
-Four Python modules plus a one-time token helper, `requests` only. No `google-ads` SDK — the REST interface
-is called directly, so the extractor cannot break on an SDK version bump, and
+Four Python modules plus a one-time token helper, `requests` only. No `google-ads`
+SDK — the REST interface is called directly, so the extractor cannot break on an SDK version bump, and
 the real connector runs on the Airbyte CDK anyway.
 
 | File | What it does |
@@ -104,8 +104,7 @@ if it is set, it is still sent as a header, harmlessly.
    **Access levels** card → Manage → Upgrade access level → Apply for access
    (the next level is **Explorer**). The application is auto-reviewed, typically
    within minutes. Applied 2026-10-19 and approved: real-account queries now
-   work. Apply for Basic later
-   only if Explorer's limits become a problem.
+   work. Apply for Basic later only if Explorer's limits become a problem.
 6. **A client accepts the manager link request** — client-side, not code. Done.
 
 After step 2 the OAuth credential works, after step 5 queries reach the real
@@ -341,13 +340,13 @@ what `GOOGLE_ADS_RESTATEMENT_DAYS` is set to.
 ## Credentials
 
 Three secrets, not one — Google Ads is an OAuth flow rather than Meta's static
-token:
+token. The developer token below is legacy and not one of the three:
 
 | Value | Secret? | Notes |
 |---|---|---|
 | `GOOGLE_ADS_CLIENT_ID` / `_CLIENT_SECRET` | **Yes** | Skypoint app-level constants |
 | `GOOGLE_ADS_REFRESH_TOKEN` | **Yes** | The real credential. One for the whole platform |
-| `GOOGLE_ADS_DEVELOPER_TOKEN` | **Yes** | Legacy — optional and ignored by the API since the September 9, 2026 sunset; leave blank |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | If set | Legacy — optional and ignored by the API since the September 9, 2026 sunset; leave blank |
 | `GOOGLE_ADS_CUSTOMER_ID` | No | Per-client scoping input; `isCredential: false` in Studio |
 | `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | No | The MCC. Sent as the `login-customer-id` header |
 
